@@ -1,4 +1,4 @@
-workingDir=pwd
+workingDir=$(pwd)
 
 cd $1
 
