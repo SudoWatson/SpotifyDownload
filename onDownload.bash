@@ -1,5 +1,5 @@
 echo "Creating virtual environment(venv)..."
-python -m venv $1/.venv
+python -m venv ./.venv
 echo "Installing Python packages"
-bash $1/update.bash $1
+bash ./update.bash
 echo "Gathering resources"
