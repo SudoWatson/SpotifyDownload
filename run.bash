@@ -1,1 +1,0 @@
-$1/.venv/Scripts/python.exe $1/spotifyDownload.py
