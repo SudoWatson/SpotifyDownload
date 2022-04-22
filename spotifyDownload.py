@@ -14,6 +14,7 @@ from tqdm.utils import disp_trim
 from tqdm import tqdm
 import youtube_dl
 import eyed3
+from plyer import notification
 
 
 
@@ -84,7 +85,7 @@ logger = logging.getLogger(" Spotify Downloader  ")
 logger.setLevel(logging.DEBUG)
 
 # Log format
-logFormat = logging.Formatter("%(levelname)s :%(name)s: %(asctime)s - %(message)s")
+logFormat = logging.Formatter("%(levelname)s %(asctime)s - %(message)s")
 streamFormat = logging.Formatter("%(levelname)s - %(message)s")
 
 # Create file handler for logger
@@ -118,7 +119,7 @@ else:
 newDir = input("Download directory: ")
 Playlist_Name = input("Playlist Name: ")
 
-directory += "/music"
+musicDirectory = os.path.join(directory, "music")
 
 
 load_dotenv()
@@ -126,12 +127,12 @@ load_dotenv()
 
 
 if newDir != "":
-    directory = newDir
+    musicDirectory = newDir
 
-if not os.path.isdir(directory):
-    os.mkdir(directory)
+if not os.path.isdir(musicDirectory):
+    os.mkdir(musicDirectory)
 
-logger.info(f"Downloading {Playlist_Name} playlist to {directory} ...")
+logger.info(f"Downloading {Playlist_Name} playlist to {musicDirectory} ...")
 
 
 # TODO ReadMe but like good
@@ -141,7 +142,7 @@ logger.info(f"Downloading {Playlist_Name} playlist to {directory} ...")
 # TODO Functions
 
 
-playlistDirectory = os.path.join(directory, Playlist_Name)
+playlistDirectory = os.path.join(musicDirectory, Playlist_Name)
 playlist = None
 
 songs = []
@@ -324,7 +325,10 @@ if len(removedSongNames):
 if resultString == "":
     resultString = "No changes"
 
+print('\n')
 logger.info(resultString)
+notification.notify(title=f"{Playlist_Name} Playlist Updated", message=resultString, app_name="SpotifyDownloader", app_icon=os.path.join(directory, "spotify.png"))
+print('\n')
 logger.okay("Spotify Downloader complete!")
 
 
