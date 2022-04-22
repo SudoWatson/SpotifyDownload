@@ -143,8 +143,11 @@ logger.info(f"Downloading {Playlist_Name} playlist to {directory} ...")
 
 playlistDirectory = os.path.join(directory, Playlist_Name)
 playlist = None
+
 songs = []
 ytSongs = []
+failedSongs = []
+
 scope = "user-library-read"
 ydl_opts = {
     "outtmpl": playlistDirectory + "/%(title)s.%(ext)s",
@@ -171,6 +174,7 @@ class Song:
         self.artist = artist
         self.album = album
         self.coverURL = coverURL
+        self.path = ""
 
 
 # Get song titles and artists from Spotify playlist
@@ -211,9 +215,13 @@ for song in tqdm(songs):
         if id:
             ytSongs.append(song)  # Add song if found likely result
             break
-    if not id: logger.error(f" \033[31mCouldn't find song {song.title}\033[0m")
+    if not id:
+        logger.error(f" \033[31mCouldn't find song {song.title}\033[0m")
+        failedSongs.append(song.title)  # Couldn't find likely song results
 
 logger.okay("Song IDs gathered")
+
+songsBefore = os.listdir(playlistDirectory)
 
 # Download all songs
 logger.info("Downloading songs...")
@@ -221,9 +229,14 @@ ydl_opts["outtmpl"] = playlistDirectory+"/%(title)s.%(ext)s"
 with youtube_dl.YoutubeDL(ydl_opts) as ydl:
     for song in tqdm(ytSongs):
         songURL = "https://www.youtube.com/watch?v=" + song.id
+
+
         song.path = (ydl.prepare_filename(ydl.extract_info(songURL)))
         song.path = song.path[:song.path.index(".")]  # Remove extension
         song.path += ".mp3"
+
+songsAfter = os.listdir(playlistDirectory)
+newSongs = set(songsAfter) - set(songsBefore)
 
 logger.okay("Downloading finished")
 
@@ -289,4 +302,29 @@ if os.path.exists(playlistDirectory):
         logger.info("No songs removed")
 
 
+resultString = ""
+if len(failedSongs):
+    resultString += f"{len(failedSongs)} Song(s) failed to download"
+    print("\n Failed to download the following songs: ")
+    for song in failedSongs:
+        print(f"  {song}")
+
+if len(newSongs):
+    resultString += f" Added {len(newSongs)} song(s)"
+    print("Added the following songs: ")
+    for song in newSongs:
+        print(f"  {song}")
+
+if len(removedSongNames):
+    resultString += f" Removed {len(removedSongNames)} song(s)"
+    print("\n Removed the following songs: ")
+    for song in removedSongNames:
+        print(f"  {song}")
+
+if resultString == "":
+    resultString = "No changes"
+
+logger.info(resultString)
 logger.okay("Spotify Downloader complete!")
+
+
