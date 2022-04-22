@@ -1,33 +1,153 @@
+from datetime import datetime
 import io
 import os
+import sys
 import requests
+import logging
+from zipfile import ZipFile
+from dotenv import load_dotenv
+
 import spotipy
+from spotipy.oauth2 import SpotifyOAuth
+from ytmusicapi import YTMusic
 from tqdm.utils import disp_trim
+from tqdm import tqdm
 import youtube_dl
 import eyed3
 
-from tqdm import tqdm
-from dotenv import load_dotenv
-from ytmusicapi import YTMusic
-from spotipy.oauth2 import SpotifyOAuth
-from zipfile import ZipFile
+
+
+
+
+print("""
+  /$$$$$$                        /$$     /$$  /$$$$$$                                             
+ /$$__  $$                      | $$    |__/ /$$__  $$                                            
+| $$  \__/  /$$$$$$   /$$$$$$  /$$$$$$   /$$| $$  \__//$$   /$$                                   
+|  $$$$$$  /$$__  $$ /$$__  $$|_  $$_/  | $$| $$$$   | $$  | $$                                   
+ \____  $$| $$  \ $$| $$  \ $$  | $$    | $$| $$_/   | $$  | $$                                   
+ /$$  \ $$| $$  | $$| $$  | $$  | $$ /$$| $$| $$     | $$  | $$                                   
+|  $$$$$$/| $$$$$$$/|  $$$$$$/  |  $$$$/| $$| $$     |  $$$$$$$                                   
+ \______/ | $$____/  \______/    \___/  |__/|__/      \____  $$                                   
+          | $$                                        /$$  | $$                                   
+          | $$                                       |  $$$$$$/                                   
+          |__/                                        \______/                                    
+ /$$$$$$$                                    /$$                           /$$                    
+| $$__  $$                                  | $$                          | $$                    
+| $$  \ $$  /$$$$$$  /$$  /$$  /$$ /$$$$$$$ | $$  /$$$$$$   /$$$$$$   /$$$$$$$  /$$$$$$   /$$$$$$ 
+| $$  | $$ /$$__  $$| $$ | $$ | $$| $$__  $$| $$ /$$__  $$ |____  $$ /$$__  $$ /$$__  $$ /$$__  $$
+| $$  | $$| $$  \ $$| $$ | $$ | $$| $$  \ $$| $$| $$  \ $$  /$$$$$$$| $$  | $$| $$$$$$$$| $$  \__/
+| $$  | $$| $$  | $$| $$ | $$ | $$| $$  | $$| $$| $$  | $$ /$$__  $$| $$  | $$| $$_____/| $$      
+| $$$$$$$/|  $$$$$$/|  $$$$$/$$$$/| $$  | $$| $$|  $$$$$$/|  $$$$$$$|  $$$$$$$|  $$$$$$$| $$      
+|_______/  \______/  \_____/\___/ |__/  |__/|__/ \______/  \_______/ \_______/ \_______/|__/      
+                                                                                                  """)
+
+
+# TODO Cleanup the following stuff
+
+spotURL = "https://api.spotify.com/"
+# Directory to download files to
+#directory = ("//".join(os.path.realpath(__file__).split('\\')[:-1]))   # Windows?
+directory = ("/".join(os.path.realpath(__file__).split('/')[:-1]))   # TODO Linux? Even needed here?
+
+authDir = (directory + "/headers_auth.json")
+
+
+
+# Setup log file
+logDir = os.path.join(directory, "logs")
+logFileName = datetime.now().strftime("%m-%d-%Y-%H_%M") + ".log"
+logPath = os.path.join(logDir, logFileName)
+if not os.path.exists(logDir):  # Create log folder if doesn't exist
+    os.mkdir(logDir)
+with open(logPath, "w+") as f:
+    f.write(logFileName+'\n')
+
+# Redifine log level names
+logging.OKAY = logging.WARNING + 5
+
+# TODO Different names for stream than file
+logging.addLevelName(logging.DEBUG,     "[   DBUG   ]")
+logging.addLevelName(logging.INFO,      "[   INFO   ]")
+logging.addLevelName(logging.WARNING,   "[   WARN   ]")
+logging.addLevelName(logging.OKAY,      "[   OKAY   ]")
+logging.addLevelName(logging.ERROR,     "[   EROR   ]")
+logging.addLevelName(logging.CRITICAL,  "[ CRITICAL ]")
+
+# Add OKAY level
+def logOKAY(self, message, *args, **kws):
+    self._log(logging.OKAY, message, args, **kws) 
+
+logging.Logger.okay = logOKAY
+
+# Initiate logger
+logger = logging.getLogger(" Spotify Downloader  ")
+logger.setLevel(logging.DEBUG)
+
+# Log format
+logFormat = logging.Formatter("%(levelname)s :%(name)s: %(asctime)s - %(message)s")
+streamFormat = logging.Formatter("%(levelname)s - %(message)s")
+
+# Create file handler for logger
+file_handler = logging.FileHandler(logPath)
+file_handler.setFormatter(logFormat)
+file_handler.setLevel(logging.DEBUG)
+
+# Create stream handler
+streamHandler = logging.StreamHandler()
+streamHandler.setFormatter(streamFormat)
+streamHandler.setLevel(logging.INFO)
+
+# Add handlers to logger
+logger.addHandler(file_handler)
+logger.addHandler(streamHandler)
+
+
+
+logger.debug("Begin Log\n")
+
+
+# Begin
+if not os.path.exists(os.path.join(directory, ".env")):
+    logger.critical("No .env file found")
+    sys.exit(1)
+else:
+    logger.debug(".env file found")
+
+
+# TODO Clean this up too
+newDir = input("Download directory: ")
+Playlist_Name = input("Playlist Name: ")
+
+directory += "/music"
+
 
 load_dotenv()
 
 
 
+if newDir != "":
+    directory = newDir
 
-Playlist_Name = "Good Songs"
+if not os.path.isdir(directory):
+    os.mkdir(directory)
 
-spotURL = "https://api.spotify.com/"
-directory = ("//".join(os.path.realpath(__file__).split('\\')[:-1]))
-playlistDirectory = os.path.join(directory, "playlists", Playlist_Name)
+logger.info(f"Downloading {Playlist_Name} playlist to {directory} ...")
+
+
+# TODO ReadMe but like good
+# TODO Failed songs list, then list them all at end
+# TODO Take arguments
+# TODO Notifications?? Using plyer seems hella easy
+# TODO Functions
+
+
+playlistDirectory = os.path.join(directory, Playlist_Name)
 playlist = None
 songs = []
 ytSongs = []
 scope = "user-library-read"
 ydl_opts = {
-    "outtmpl": playlistDirectory + "/music/%(title)s.%(ext)s",
+    "outtmpl": playlistDirectory + "/%(title)s.%(ext)s",
     "restrictfilenames": True,
     "ignoreerrors": True,
     "download_archive": playlistDirectory+"/archive",
@@ -35,7 +155,7 @@ ydl_opts = {
     "geo_bypass": True,
     "keepvideo": False,
     "no_color": False,
-    "ffmpeg_location": os.getenv("FFMPEG_PATH"),
+#    "ffmpeg_location": os.getenv("FFMPEG_PATH"),  # Linux shouldn't need?
     "postprocessors": [{
         "key": "FFmpegExtractAudio",
         "preferredcodec": "mp3",
@@ -54,7 +174,7 @@ class Song:
 
 
 # Get song titles and artists from Spotify playlist
-print("Gathering Spotify song data...")
+logger.info("Gathering Spotify song data...")
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(scope=scope))
 
 results = sp.current_user_playlists()["items"]  # Gets user playlists
@@ -71,12 +191,12 @@ while playlist:  # Goes through 100 song chunks of the playlist
     else:  # Don't continue if not another chunk
         playlist = None
 
-print("Spotify data gathered")
+logger.okay("Spotify data gathered")
 
 # Get YouTube watch IDs of all songs
-print("Getting song IDs...")
+logger.info("Getting song IDs...")
 
-ytm = YTMusic((directory+"/headers_auth.json"))
+ytm = YTMusic(authDir)
 
 for song in tqdm(songs):
     ytSongList = ytm.search(query=(song.title + " " + song.artist), filter="songs")  # Search for song on YouTube Music
@@ -91,15 +211,13 @@ for song in tqdm(songs):
         if id:
             ytSongs.append(song)  # Add song if found likely result
             break
-    if not id: print(f" \033[31mCouldn't find song {song.title}\033[0m")
-    # if song is songs[2]:  #TODO ends at fifth song for testing
-    #     break
+    if not id: logger.error(f" \033[31mCouldn't find song {song.title}\033[0m")
 
-print("Song IDs gathered")
+logger.okay("Song IDs gathered")
 
 # Download all songs
-print("Downloading songs...")
-ydl_opts["outtmpl"] = playlistDirectory+"/music/%(title)s.%(ext)s"
+logger.info("Downloading songs...")
+ydl_opts["outtmpl"] = playlistDirectory+"/%(title)s.%(ext)s"
 with youtube_dl.YoutubeDL(ydl_opts) as ydl:
     for song in tqdm(ytSongs):
         songURL = "https://www.youtube.com/watch?v=" + song.id
@@ -107,14 +225,14 @@ with youtube_dl.YoutubeDL(ydl_opts) as ydl:
         song.path = song.path[:song.path.index(".")]  # Remove extension
         song.path += ".mp3"
 
-print("Downloading finished")
+logger.okay("Downloading finished")
 
 # Write mp3 metadata
-print("Writing metadata...")
-for songFilePath in tqdm(os.listdir((playlistDirectory + "/music"))):
+logger.info("Writing metadata...")
+for songFilePath in tqdm(os.listdir((playlistDirectory))):
     for ytSong in ytSongs:
         if songFilePath in ytSong.path:
-            songFile = eyed3.load(os.path.join(playlistDirectory, "music", songFilePath)).tag
+            songFile = eyed3.load(os.path.join(playlistDirectory, songFilePath)).tag
             songFile.title = ytSong.title
             songFile.artist = ytSong.artist
             songFile.album = ytSong.album
@@ -127,21 +245,21 @@ for songFilePath in tqdm(os.listdir((playlistDirectory + "/music"))):
             songFile.images.set(type_=3, img_data=image_bytes.getvalue(), mime_type=response.headers["Content-Type"], description=u"", img_url=None)
             
             songFile.save()
-            break # TODO Uhmmmm I feel like we DON'T want this
+            break
 
-print("Finished writing metadata")
+logger.okay("Finished writing metadata")
 
 
 # TODO Remove old songs
-if os.path.exists(playlistDirectory + "/music"):
-    print("Removing old songs...")
+if os.path.exists(playlistDirectory):
+    logger.info("Removing old songs...")
     removedSongNames = []
     lines = ""
     removeIDs = []
     IDs = None
     with open(os.path.join(playlistDirectory, "archive"), 'r') as f:
         IDs = f.readlines()
-    for songFilePath, songID in tqdm(zip(os.listdir((playlistDirectory + "/music")), IDs)):  # Go through each song already downloaded
+    for songFilePath, songID in tqdm(zip(os.listdir(playlistDirectory), IDs)):  # Go through each song already downloaded
         want = False
         
         #print(songFile.privates.get(bytes(songID, encoding='utf-8')))
@@ -155,30 +273,20 @@ if os.path.exists(playlistDirectory + "/music"):
             #     removeIDs.append(songID)
                 #IDs.remove(songID)  # Remove song from archive
         if not want:  # Remove song if we don't want it
-            songFile = eyed3.load(os.path.join(playlistDirectory, "music", songFilePath)).tag
+            songFile = eyed3.load(os.path.join(playlistDirectory, songFilePath))
+            if songFile is None: continue
+            songFile = songFile.tag
+            logger.info(f"Removed song: {songFile.title}")
             removedSongNames.append(songFile.title)
             removeID = songFile.privates.get(b"Spotify Downloader - Lennert").owner_data
             removeIDs.append(removeID.decode("utf-8"))
-            os.remove(os.path.join(playlistDirectory, "music", songFilePath))  # Remove song
+            os.remove(os.path.join(playlistDirectory, songFilePath))  # Remove song
     with open(os.path.join(playlistDirectory, "archive"), 'w') as f:
         for line in IDs:
             if line.replace("youtube ", '').replace('\n', '') not in removeIDs:
                 f.write(line)
-    if len(removedSongNames):
-        print("Removed the following songs:")
-        for songName in removedSongNames:
-            print(songName)
-    else:
-        print("No songs removed")
+    if not len(removedSongNames):
+        logger.info("No songs removed")
 
 
-
-# Compressing music folder
-print("Compressing files...")
-zip = ZipFile(os.path.join(playlistDirectory, "music.zip"), "w")
-
-for song in tqdm(os.listdir((playlistDirectory + "/music"))):
-    zip.write((playlistDirectory + "/music/" + song),song)
-
-zip.close()
-print("Finished music compression")
+logger.okay("Spotify Downloader complete!")
